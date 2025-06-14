@@ -1,11 +1,340 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>おでかけ準備アプリ</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
+  <header>
+    <h1>おでかけ準備アプリ</h1>
+  </header>
+
+  <main>
+    <div class="main-container">
+        <div class="parent form-section">
+            <div class="title_place">キャンプ場名</div>
+            <div class="input_place">
+                <select id="input_place">
+                    <option value="">選択してください</option>
+                    <option value="一本松公園（昭和の森）キャンプ場" data-height="300">一本松公園（昭和の森）キャンプ場</option>
+                    <option value="池の山キャンプ場" data-height="700">池の山キャンプ場</option>
+                    <option value="モンベル五ケ山ベースキャンプ" data-height="260">モンベル 五ケ山ベースキャンプ</option>
+                    <option value="岩屋キャンプ場" data-height="330">岩屋キャンプ場</option>
+                    <option value="くつろぎの森グリーンピア八女キャンプ場" data-height="440">くつろぎの森グリーンピア八女キャンプ場</option>
+                    <option value="おはなキャンプ場（OHANA CAMP&BBQ）" data-height="10">おはなキャンプ場（OHANA CAMP&BBQ）</option>
+                    <option value="その他">その他（標高を手入力）</option>
+                </select>
+            </div>
+            <div class="title_date">日付を入力</div>
+            <div class="input_date"><input type="date" id="input_date"></div>
+            <div class="title_high_temp">最高気温（℃）</div>
+            <div class="input_high_temp"><input type="number" id="input_high_temp"></div>
+            <div class="title_low_temp">最低気温（℃）</div>
+            <div class="input_low_temp"><input type="number" id="input_low_temp"></div>
+            <div class="title_wind_speed">風速（m/s）</div>
+            <div class="input_wind_speed"><input type="number" id="input_wind_speed"></div>
+            <div class="title_height">標高（m）</div>
+            <div class="input_height"><input type="number" id="input_height"></div>
+            <div id="calculation" class="button">予測する</div>
+            <div class="output_box hidden">この条件から予測される体感気温の目安</div>
+            <div id="output_high_temp" class="hidden"></div>
+            <div id="output_low_temp" class="hidden"></div>
+            <div class="recommended_equipment hidden">推奨される装備はこちら</div>
+            <div class="text_area hidden"><textarea id="text_area"></textarea></div>
+            <div id="save" class="button hidden">Save</div>
+            <div id="clear" class="button hidden">Clear</div>
+        </div> <section class="record-list-section"> <h2>過去のキャンプ記録</h2>
+            <div id="record-list-container">
+                <p id="no-records-message">保存されている記録はありません。</p>
+            </div>
+        </section>
+    </div>
     
+  </main>
+
+  <footer>
+    <small>G's camping club</small>
+  </footer>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script>
+
+    $(function() {
+
+        //キャンプ場アプリ
+        //キャンプ場名を選ぶ（標高も入れておく）
+        $("#input_place").on("change",function(){
+            const selectedOption = $(this).find("option:selected");// 選択したoptionの要素
+            const heightData = selectedOption.data("height");// data-heightの値を取ってくる
+
+            if (selectedOption.val() === "その他") { //その他の場合
+                $("#input_height").val(""); //標高が空欄
+                $("#input_height").prop("readonly", false); //手入力を許可
+            } else if (heightData !== undefined && heightData !== "") { //optionを選んで標高が空欄じゃない場合
+                $("#input_height").val(heightData); //標高に値が入る
+                $("#input_height").prop("readonly", true);  //自動で入力の場合は読み取り専用
+            } else { //optionを選んで標高が空欄の場合(手入力)
+                $("#input_height").val(""); //標高が空欄
+                $("#input_height").prop("readonly", false); //手入力を許可
+            }
+        });
+
+        //体感気温計算と表示の関数
+        function calculateAndDisplay() {
+            // 入力した値は文字列のため数値に変換
+            const highTemp = parseFloat($("#input_high_temp").val()); // 最高気温
+            const lowTemp = parseFloat($("#input_low_temp").val());   // 最低気温
+            const windSpeed = parseFloat($("#input_wind_speed").val()); // 風速
+            const inputHeight = parseFloat($("#input_height").val());  // 標高
+
+            //最高気温、最低気温、風速、標高に数値じゃない入力があったらアラート
+            //isNaN()は入力が空欄や「abc」のような文字列だった場合にtrueを返す(Not a Number)
+            if (isNaN(highTemp) || isNaN(lowTemp) || isNaN(windSpeed) || isNaN(inputHeight)) {
+                alert("最高気温、最低気温、風速、標高には数値を入力してください。");
+
+                $("#output_high_temp").text(""); //数字じゃない場合はデータをクリアしてお薦め装備欄も非表示にする
+                $("#output_low_temp").text("");
+                $("#text_area").val("");
+                //表示を非表示にする
+                $(".output_box, #output_high_temp, #output_low_temp, .recommended_equipment, .text_area, #save, #clear").addClass("hidden");
+                return; //関数の処理を終了
+            }
+            
+            const windEffect = windSpeed * 1; //風速(1mごとに-1℃)
+            const heightEffect = (inputHeight / 100) * 0.6; //標高（100mごとに-0.6℃)
+            const effectiveHighTemp = highTemp - windEffect - heightEffect;
+            const effectiveLowTemp = lowTemp - windEffect - heightEffect;
+            $("#output_high_temp").text(`最高: ${effectiveHighTemp.toFixed(1)}℃`); //toFixed()で小数点(第何位)で丸められる
+            $("#output_low_temp").text(`最低: ${effectiveLowTemp.toFixed(1)}℃`);
+
+            recommendGear(effectiveLowTemp);
+
+            //非表示を表示に変える
+            $(".output_box, #output_high_temp, #output_low_temp, .recommended_equipment, .text_area, #save, #clear").removeClass("hidden");
+        }
+
+        //体感気温に応じておすすめの装備が提案される
+        $("#calculation").on("click", calculateAndDisplay); //予測するをクリックすると関数が実行される
+
+        function recommendGear(effectiveLowTemp) {
+            let campGear = "";
+
+            if (effectiveLowTemp < -5) {
+                campGear = "【寒いと寝られないし、命に関わるよ！装備を再度チェック！】厳冬期用シュラフ、厚手ダウンジャケット、防寒着、冬用帽子、手袋、厚手靴下、焚き火台、カイロ複数、湯たんぽ、電気毛布やストーブ";
+            } else if (effectiveLowTemp < 0) {
+                campGear = "冬用シュラフ、ダウンジャケット、フリース、ヒートテックなどの保温性インナー、厚手の靴下、手袋、ニット帽、焚き火台、カイロ、湯たんぽ";
+            } else if (effectiveLowTemp < 5) {
+                campGear = "冬用シュラフ、フリース、セーター、保温性インナー、薄手のダウンジャケット、手袋、帽子、焚き火台";
+            } else if (effectiveLowTemp < 10) {
+                campGear = "3シーズン用シュラフ、長袖シャツ、薄手のジャケット、薄手のフリース、長ズボン、焚き火台";
+            } else if (effectiveLowTemp < 15) {
+                campGear = "夏用シュラフ、長袖シャツ、薄手の羽織もの、虫よけスプレー、焚き火台";
+            } else if (effectiveLowTemp < 20) {
+                campGear = "夏用シュラフ、Tシャツ、短パン、帽子、日焼け止め、虫よけスプレー、扇風機";
+            } else {
+                campGear = "【30℃を超えるようであれば中止も検討!】夏用シュラフ、軽装（Tシャツ、短パンなど）、熱中症対策（水分、帽子）、虫よけスプレー";
+            }
+
+            $("#text_area").val(campGear);
+        }
+
+        // データを保存するときの処理
+        $("#save").on("click", function(){ //セーブをクリックした時
+            const campingData = {
+                campsiteName: $("#input_place").val(),
+                date: $("#input_date").val(),
+                highTemp: $("#input_high_temp").val(),
+                lowTemp: $("#input_low_temp").val(),
+                windSpeed: $("#input_wind_speed").val(),
+                heights: $("#input_height").val(),
+                // 計算結果も保存
+                effectiveHigh: $("#output_high_temp").text(),
+                effectiveLow: $("#output_low_temp").text(),
+                recommendedGear: $("#text_area").val(),
+            };
+
+            //allCampingRecordsでLocalStorageから既存のキャンプ記録を取得
+            // データがなければ空の配列を初期値とする
+            let existingRecords = JSON.parse(localStorage.getItem("allCampingRecords")) || [];
+            // 新しいデータをexistingRecordsの末尾に追加
+            existingRecords.push(campingData);
+            // 更新されたexistingRecordsをJSONに変換し、再びallCampingRecordsでLocalStorageに保存
+            localStorage.setItem("allCampingRecords", JSON.stringify(existingRecords));
+
+            alert("キャンプデータを保存しました！");
+            displayRecords(); //保存後に記録一覧を最新情報に更新
+        });
+
+        // データを削除するときの処理 (全ての記録を削除)
+        $("#clear").on("click", function(){
+            localStorage.removeItem("allCampingRecords"); // 全ての記録を削除する
+
+            $("#input_place").val("");
+            $("#input_date").val("");
+            $("#input_high_temp").val("");
+            $("#input_low_temp").val("");
+            $("#input_wind_speed").val("");
+            $("#input_height").val("");
+            $("#output_high_temp").text("");
+            $("#output_low_temp").text("");
+            $("#text_area").val("");
+            // 表示を非表示に戻す
+            $(".output_box, #output_high_temp, #output_low_temp, .recommended_equipment, .text_area, #save, #clear").addClass("hidden");
+            alert("キャンプデータをクリアしました！");
+            displayRecords(); //クリア後に記録一覧を最新情報に更新
+        });
+
+        //ページ読み込み時と保存・クリア後に記録一覧を表示する関数
+        function displayRecords() {
+            //allCampingRecordsでLocalStorageからJSON文字列を取得
+            const allRecordsJson = localStorage.getItem("allCampingRecords");
+            //取得したJSON文字列を配列に変換、データがなければ空の配列を返す
+            const allRecords = JSON.parse(allRecordsJson) || [];
+
+            const $recordListContainer = $("#record-list-container");
+            $recordListContainer.empty(); // 既存のリストをクリア
+
+            if (allRecords.length === 0) { //配列の要素数が0（記録がない）場合
+                $recordListContainer.append('<p id="no-records-message">保存されている記録はありません。</p>');
+            } else { // 記録がある場合
+                $("#no-records-message").remove(); // メッセージを削除
+
+                // 最新の記録が一番上に来るように
+                for (let i = allRecords.length - 1; i >= 0; i--) {
+                    const record = allRecords[i];
+
+                    //右側の過去のキャンプ記録をカードにする
+                    const $recordDiv = $('<div>') //divを作る
+                        .addClass('camp-record-item') //classを追加（CSSが適用される）
+                        .data('record-index', i); //どの記録か識別できるようにインデックスをデータ属性として保存
+
+                    const $deleteButton = $('<button>') //ボタンを作る
+                        .addClass('delete-record-button') // クラスを追加
+                        .text('削除') //ボタンに表示する文言
+                        .data('record-index', i);
+                    $recordDiv.append($deleteButton); // ここで直接 recordDiv に追加
+
+                    // ヘッダー部分（日付とキャンプ場名のみ）
+                    const $headerDiv = $('<div>').addClass('record-header');
+                    $headerDiv.append($('<h3>').text(`${record.date} - ${record.campsiteName}`));
+                    $recordDiv.append($headerDiv); // recordDiv にヘッダーを追加
+
+                    // 情報部分
+                    const $infoDiv = $('<div>').addClass('record-info');
+                    $infoDiv.append($('<p>').text(`体感気温: ${record.effectiveHigh} / ${record.effectiveLow}`));
+                    $infoDiv.append($('<p>').text(`推奨装備: ${record.recommendedGear}`));
+                    $recordDiv.append($infoDiv);
+                    
+                    $recordListContainer.append($recordDiv); //$recordDiv（キャンプ記録カード）を、record-list-containerに追加して表示
+                }
+            }
+        }
+
+        //記録がクリックされたときにフォームに読み込む
+        $("#record-list-container").on("click", ".camp-record-item", function(event) {
+            if ($(event.target).hasClass('delete-record-button')) { //削除ボタンがクリックされた場合
+                event.stopPropagation(); // フォームの読み込みを停止(親要素(フォームの読み込み)への伝播を停止)
+                return; //関数の処理を終了
+            }
+
+            const recordIndex = $(this).data('record-index'); //クリックしたデータを取得
+            //LocalStorageから全てのキャンプ記録のJSON文字列を取得
+            const allRecordsJson = localStorage.getItem("allCampingRecords");
+            const allRecords = JSON.parse(allRecordsJson) || []; //JSON文字列をJavaScriptの配列に変換
+
+            //クリックしたデータが存在する場合
+            if (recordIndex !== undefined && allRecords[recordIndex]) { 
+                const recordToLoad = allRecords[recordIndex];
+
+                // フォームにデータを読み込む
+                $("#input_place").val(recordToLoad.campsiteName);
+                $("#input_date").val(recordToLoad.date);
+                $("#input_high_temp").val(recordToLoad.highTemp);
+                $("#input_low_temp").val(recordToLoad.lowTemp);
+                $("#input_wind_speed").val(recordToLoad.windSpeed);
+                $("#input_height").val(recordToLoad.heights);
+
+                // 標高フィールドのreadonly状態も復元
+                const selectedOptionOnLoad = $("#input_place").find("option:selected");
+                if (recordToLoad.campsiteName !== "その他" && selectedOptionOnLoad.data("height") !== undefined) {
+                    $("#input_height").prop("readonly", true);
+                } else {
+                    $("#input_height").prop("readonly", false);
+                }
+
+                // 計算結果と推奨装備を表示
+                $("#output_high_temp").text(recordToLoad.effectiveHigh);
+                $("#output_low_temp").text(recordToLoad.effectiveLow);
+                $("#text_area").val(recordToLoad.recommendedGear);
+                $(".output_box, #output_high_temp, #output_low_temp, .recommended_equipment, .text_area, #save, #clear").removeClass("hidden");
+
+                alert(`${recordToLoad.date} の記録を読み込みました！`);
+            }
+        });
+
+         // 個別削除ボタンのイベント
+        $("#record-list-container").on("click", ".delete-record-button", function() {
+            const recordIndexToDelete = $(this).data('record-index'); // 削除する記録を取得
+            let allRecords = JSON.parse(localStorage.getItem("allCampingRecords")) || [];
+
+            if (confirm("この記録を削除してもよろしいですか？")) {
+                // 表示上のインデックスを、LocalStorage内の配列の正しいインデックスに変換
+                // 例えば、要素数が3でdisplayedIndexが2（一番上の記録）の場合、
+                // allRecords.length - 1 - displayedIndex => 3 - 1 - 2 = 0 (LocalStorageの0番目の要素)
+                const actualIndexToDelete = allRecords.length - 1 - displayedIndex;
+
+                // 配列から該当する記録を削除
+                allRecords.splice(recordIndexToDelete, 1); // splice(開始インデックス, 削除する要素数)
+
+                // 更新された配列をローカルストレージに保存
+                localStorage.setItem("allCampingRecords", JSON.stringify(allRecords));
+
+                alert("記録を削除しました！");
+                displayRecords(); // 記録一覧を再表示して更新を反映
+            }
+        });
+
+        // ページ読み込み時にフォームに最新データを読み込み、記録一覧も表示
+        // フォームへの最新データ読み込み
+        const allRecordsJsonOnLoad = localStorage.getItem("allCampingRecords");
+        if (allRecordsJsonOnLoad) {
+            const allRecords = JSON.parse(allRecordsJsonOnLoad);
+            if (allRecords.length > 0) {
+                const latestData = allRecords[allRecords.length - 1]; 
+
+                $("#input_place").val(latestData.campsiteName);
+                $("#input_date").val(latestData.date);
+                $("#input_high_temp").val(latestData.highTemp);
+                $("#input_low_temp").val(latestData.lowTemp);
+                $("#input_wind_speed").val(latestData.windSpeed);
+                $("#input_height").val(latestData.heights);
+
+                // 標高フィールドのreadonly状態も復元
+                const selectedOptionOnLoad = $("#input_place").find("option:selected");
+                if (latestData.campsiteName !== "その他" && selectedOptionOnLoad.data("height") !== undefined) {
+                    $("#input_height").prop("readonly", true);
+                } else {
+                    $("#input_height").prop("readonly", false);
+                }
+
+                $("#output_high_temp").text(latestData.effectiveHigh);
+                $("#output_low_temp").text(latestData.effectiveLow);
+                $("#text_area").val(latestData.recommendedGear);
+
+                $(".output_box, #output_high_temp, #output_low_temp, .recommended_equipment, .text_area, #save, #clear").removeClass("hidden");
+            }
+        }
+        
+        displayRecords(); //ページ読み込み時に記録一覧も表示
+    });
+
+  </script>
+
+
 </body>
+
 </html>
