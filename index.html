@@ -17,9 +17,51 @@
   <main>
     <div class="container">
       <h2>水分補給の記録</h2>
+      <h2>あなたの情報</h2>
+      <form id="user-profile-form">
+        <label for="age">年齢:</label>
+        <input type="number" id="age" name="age" min="1" required>
+        <label for="weight">体重 (kg):</label>
+        <input type="number" id="weight" name="weight" min="1" step="0.1" required>
+        <button type="submit">設定・更新</button>
+      </form>
+      <div id="recommended-intake">
+        <h3>本日の推奨水分量: <span id="daily-recommended-amount">未設定</span> ml</h3>
+        <p>(純粋な飲料として)</p>
+      </div>
+
+      <div id="weather-info">
+        <h3>現在の天気情報と注意喚起</h3>
+        <p>位置情報: 緯度 <span id="latitude">未取得</span>, 経度 <span id="longitude">未取得</span></p>
+        <p>天気: <span id="weather">未取得</span></p>
+        <p>気温: <span id="temperature">未取得</span></p>
+        <p>湿度: <span id="humidity">未取得</span></p>
+        <p>気圧: <span id="pressure">未取得</span></p>
+        <div id="heatstroke-warning">
+          <h3>熱中症注意喚起: <span id="warning-level"></span></h3>
+          <p id="warning-message"></p>
+        </div>
+      </div>
+
+      <p>※推奨水分量は体重と年齢に基づいて計算されます。</p>
+      <p>※天気情報は位置情報を基に取得されます。</p>
+      <p>※位置情報の取得にはブラウザの許可が必要です。</p>
+      <p>※天気APIはOpenWeatherMapを使用しています。</p>
+      <p>※天気APIキーは適宜取得して使用してください。</p>
+
       <form id="water-form">
         <label for="amount">水分量 (ml):</label>
         <input type="number" id="amount" name="amount" required>
+        <label for="drink-type">飲み物の種類:</label>
+        <select id="drink-type" name="drink-type">
+          <option value="water">水</option>
+          <option value="tea">お茶 (カフェイン少量)</option>
+          <option value="coffee">コーヒー (カフェイン多め)</option>
+          <option value="sports_drink">スポーツドリンク</option>
+          <option value="juice">ジュース</option>
+          <option value="alcohol">アルコール</option>
+          <option value="other">その他</option>
+        </select>
         <button type="submit">記録する</button>
       </form>
 
@@ -28,14 +70,9 @@
         <ul id="water-log-list"></ul>
       </div>
     </div>
+
     <div class="container">
       <h2>水分補給の目標</h2>
-      <form id="goal-form">
-        <label for="goal">目標水分量 (ml):</label>
-        <input type="number" id="goal" name="goal" required>
-        <button type="submit">設定する</button>
-      </form>
-
       <div id="goal-display">
         <h3>現在の目標: <span id="current-goal">未設定</span> ml</h3>
       </div>
@@ -48,9 +85,10 @@
         <p id="progress">0 ml / <span id="goal-amount">未設定</span> ml</p>
       </div>
     </div>
+
     <div class="container">
       <h2>水分補給のヒント</h2>
-      <ul>
+      <ul id="tips-list">
         <li>定期的に水分を摂ることを心がけましょう。</li>
         <li>運動後や暑い日は特に意識して水分補給を行いましょう。</li>
         <li>水分補給の目標を設定し、達成感を感じましょう。</li>
@@ -68,90 +106,187 @@
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
   <script>
-    天気API連携: 今日の気温や湿度に応じて、推奨される水分摂取量を調整できます。例えば、暑い日や湿度が高い日は多めに、涼しい日は少なめにといった具合です。
+    // グローバル変数を定義 (必要に応じて)
+    let waterLog = [];
+    let totalWaterIntake = 0;
+    let userAge = 0;
+    let userWeight = 0;
+    let userBodyTemp = 36.8; // 体温入力UIを追加しない限り固定
+    let dailyRecommendedIntake = 0;
+    
+    const OPEN_WEATHER_MAP_API_KEY = ""; // あなたのAPIキーを設定
 
-    // リクエストを送るurlを準備
-    // 位置情報を取得して天気情報を表示する
-    if (!navigator.geolocation) {
-      alert("このブラウザは位置情報を取得できません");
-    } else {
-      console.log("位置情報を取得します");
-    }
-    // 位置情報を取得する成功時のコールバック関数
-    function getPositionSuccess(position){
-      console.log(position.coords.latitude);
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      $("#latitude").text(lat);
-      $("#longitude").text(lng);
-      
-      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=ad7685d96234d5a3d777e72fd881dbf2&units=metric`;
+    $(document).ready(function () {
+      // --- 1. 位置情報と天気API連携 ---
+      if (!navigator.geolocation) {
+        alert("このブラウザは位置情報を取得できません。");
+      } else {
+        console.log("位置情報を取得します。");
+        navigator.geolocation.getCurrentPosition(getPositionSuccess, getPositionError);
+      }
 
-      axios
-      .get(url)
-      .then(function (response) {
-        console.log(response.data);
-        $("#weather").text(response.data.weather[0].main);
-        $("#temperature").text(response.data.main.temp + "℃");
-        $("#humidity").text(response.data.main.humidity + "%");
-        $("#pressure").text(response.data.main.pressure + "hPa");
-      })
+      function getPositionSuccess(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        $("#latitude").text(lat.toFixed(4)); // 小数点以下を丸めて表示
+        $("#longitude").text(lng.toFixed(4));
+        
+        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${OPEN_WEATHER_MAP_API_KEY}&units=metric`;
 
-      .catch(function (error) {
-        console.log(error);
-      })
-    }
+        axios
+          .get(url)
+          .then(function (response) {
+            console.log("天気情報:", response.data);
+            const temp = response.data.main.temp;
+            const humidity = response.data.main.humidity;
 
-    function getPositionError(error){
-      const errorMassages = [
-        "位置情報が許可されてません",
-        "現在位置を特定できません",
-        "位置情報を取得する前にタイムアウトになりました",
-      ];
-      alert("error: " + errorMassages[error.code - 1]);
-    }
+            $("#weather").text(response.data.weather[0].description); // 天気の詳細な説明を表示
+            $("#temperature").text(temp + "℃");
+            $("#humidity").text(humidity + "%");
+            $("#pressure").text(response.data.main.pressure + "hPa");
 
-    navigator.geolocation.getCurrentPosition(getPositionSuccess, getPositionError);
+            // --- 熱中症注意喚起ロジック ---
+            let warningLevel = "";
+            let warningMessage = "";
 
-        $(document).ready(function () {
-      let waterLog = [];
-      let goalAmount = 0;
-      let totalWaterIntake = 0;
+            if (temp >= 31 && humidity >= 70) {
+              warningLevel = "危険";
+              warningMessage = "運動は原則中止！厳重警戒レベルです。外出はなるべく避け、涼しい場所で過ごし、こまめに水分・塩分を補給してください。";
+            } else if (temp >= 28 && humidity >= 60) {
+              warningLevel = "厳重警戒";
+              warningMessage = "外出時は炎天下を避け、涼しい服装を。積極的に休憩と水分・塩分補給をしましょう。";
+            } else if (temp >= 25 && humidity >= 50) {
+              warningLevel = "警戒";
+              warningMessage = "熱中症に注意が必要です。適宜水分・塩分を補給し、休憩を取りましょう。";
+            } else {
+              warningLevel = "注意";
+              warningMessage = "一般的な注意が必要です。意識的な水分補給を心がけましょう。";
+            }
 
-      // 水分補給の記録
+            $("#warning-level").text(warningLevel);
+            $("#warning-message").text(warningMessage);
+
+          })
+          .catch(function (error) {
+            console.log("天気APIエラー:", error);
+            $("#warning-level").text("情報取得失敗");
+            $("#warning-message").text("天気情報が取得できませんでした。APIキーを確認してください。");
+          });
+      }
+
+      function getPositionError(error) {
+        const errorMessages = [
+          "位置情報が許可されていません。",
+          "現在位置を特定できませんでした。",
+          "位置情報を取得する前にタイムアウトになりました。",
+        ];
+        alert("位置情報エラー: " + errorMessages[error.code - 1]);
+        $("#latitude").text("取得失敗");
+        $("#longitude").text("取得失敗");
+      }
+
+      // --- 2. ユーザープロファイルと推奨水分量計算 ---
+      $('#user-profile-form').on('submit', function (e) {
+        e.preventDefault();
+        userAge = parseInt($('#age').val());
+        userWeight = parseFloat($('#weight').val());
+
+        if (isNaN(userAge) || userAge <= 0 || isNaN(userWeight) || userWeight <= 0) {
+          alert('年齢と体重を正しく入力してください。');
+          return;
+        }
+
+        calculateDailyRecommendedIntake(); // 推奨量の計算
+        updateProgress(); // 進捗状況を更新して目標に反映
+      });
+
+      // 推奨水分量の計算関数
+      function calculateDailyRecommendedIntake() {
+        let ageSpecificMlPerKg;
+        if (userAge < 30) {
+          ageSpecificMlPerKg = 40;
+        } else if (userAge >= 30 && userAge <= 55) {
+          ageSpecificMlPerKg = 35;
+        } else { // 56歳以上
+          ageSpecificMlPerKg = 30;
+        }
+
+        const baseRequiredWater = userWeight * ageSpecificMlPerKg;
+
+        // 不感蒸泄の計算 (体温は固定値を使用)
+        const insensibleLoss = (userWeight * 15) + ((userBodyTemp - 36.8) * 200);
+
+        const waterFromMeal = 600; // 食事からの水分量
+
+        // 純粋な飲料としての推奨量
+        dailyRecommendedIntake = Math.max(0, baseRequiredWater + insensibleLoss - waterFromMeal);
+        $('#daily-recommended-amount').text(Math.round(dailyRecommendedIntake));
+        
+        // 推奨量を目標に自動設定
+        // goalAmount = dailyRecommendedIntake; // これをコメントアウトして手動設定を有効にするか、手動設定フォームを削除する
+        $('#current-goal').text(Math.round(dailyRecommendedIntake)); // 表示だけ更新
+        $('#goal-amount').text(Math.round(dailyRecommendedIntake)); // 表示だけ更新
+      }
+
+      // --- 3. 水分補給の記録と種類別アドバイス ---
       $('#water-form').on('submit', function (e) {
         e.preventDefault();
         const amount = parseInt($('#amount').val());
+        const drinkType = $('#drink-type').val();
+
         if (isNaN(amount) || amount <= 0) {
           alert('正しい水分量を入力してください。');
           return;
         }
-        waterLog.push(amount);
+
+        let adviceMessage = "";
+        if (drinkType === "coffee" || drinkType === "alcohol") {
+          adviceMessage = `（${drinkType === "coffee" ? "カフェイン" : "アルコール"}は利尿作用があるため、水分補給効果が相殺されることがあります。追加で水を摂りましょう）`;
+        } else if (drinkType === "sports_drink") {
+          adviceMessage = "（塩分・糖分が含まれます。運動時以外は水の補給も心がけましょう）";
+        }
+
+        // waterLog.push(amount); // 以前の記録方法
+        waterLog.push({ amount: amount, type: drinkType, timestamp: new Date().toISOString() }); // 詳細情報を記録
         totalWaterIntake += amount;
-        $('#water-log-list').append(`<li>${amount} ml</li>`);
+        $('#water-log-list').append(`<li>${amount} ml (${drinkType} - ${new Date().toLocaleTimeString()}) ${adviceMessage}</li>`);
         $('#amount').val('');
         updateProgress();
       });
 
-      // 水分補給の目標設定
-      $('#goal-form').on('submit', function (e) {
-        e.preventDefault();
-        goalAmount = parseInt($('#goal').val());
-        if (isNaN(goalAmount) || goalAmount <= 0) {
-          alert('正しい目標水分量を入力してください。');
-          return;
-        }
-        $('#current-goal').text(goalAmount);
-        $('#goal-amount').text(goalAmount);
-        $('#goal-status').text(totalWaterIntake >= goalAmount ? '目標達成' : '目標未達成');
-        updateProgress();
-      });
+      // --- 4. 目標設定と進捗状況 ---
+      // 目標設定フォームはユーザープロファイルから自動設定されるため、基本的には不要になりますが、
+      // ユーザーが手動でオーバーライドしたい場合のために残すことも可能です。
+      // 現在のコードでは、ユーザープロファイル設定時にgoalAmountが更新されるため、このセクションは不要か、別の意図があるか確認が必要です。
+      // もし手動設定フォームを残すなら、calculateDailyRecommendedIntake()のgoalAmount設定部分をコメントアウトしてください。
+      
+      // $('#goal-form').on('submit', function (e) {
+      //   e.preventDefault();
+      //   goalAmount = parseInt($('#goal').val());
+      //   if (isNaN(goalAmount) || goalAmount <= 0) {
+      //     alert('正しい目標水分量を入力してください。');
+      //     return;
+      //   }
+      //   $('#current-goal').text(goalAmount);
+      //   $('#goal-amount').text(goalAmount);
+      //   updateProgress();
+      // });
 
-      // 進捗状況の更新
+      // 進捗状況の更新関数
       function updateProgress() {
-        $('#progress').text(`${totalWaterIntake} ml / ${goalAmount} ml`);
+        $('#progress').text(`${totalWaterIntake} ml / ${Math.round(dailyRecommendedIntake)} ml`);
+        if (dailyRecommendedIntake > 0) {
+          $('#goal-status').text(totalWaterIntake >= dailyRecommendedIntake ? '目標達成！素晴らしい！' : '目標未達成');
+        } else {
+          $('#goal-status').text('目標を先に設定してください（年齢・体重を入力）');
+        }
       }
-    }); 
+
+      // ページロード時に推奨量を計算し、進捗を更新
+      calculateDailyRecommendedIntake(); 
+      updateProgress();
+    });
+
 
   </script>
 
