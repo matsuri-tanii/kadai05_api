@@ -105,6 +105,8 @@
     <!-- axiosライブラリの読み込み -->
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
+  <script src="api_config.js"></script>
+  
   <script>
     // グローバル変数を定義 (必要に応じて)
     let waterLog = [];
@@ -113,8 +115,6 @@
     let userWeight = 0;
     let userBodyTemp = 36.8; // 体温入力UIを追加しない限り固定
     let dailyRecommendedIntake = 0;
-    
-    const OPEN_WEATHER_MAP_API_KEY = ""; // あなたのAPIキーを設定
 
     $(document).ready(function () {
       // --- 1. 位置情報と天気API連携 ---
