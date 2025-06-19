@@ -1,0 +1,120 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body{
+    display: flex;
+    justify-content: flex-start;
+    flex-direction: column;
+    align-items: center;
+    background-attachment: fixed;
+    background: linear-gradient(rgb(47,150,163), rgb(48,62,143));
+    font-family: 'Arial', sans-serif;
+    color: white;
+    padding: 10px;
+}
+header {
+      text-align: center;
+      margin-bottom: 10px;
+      padding: 15px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+h1 {
+  font-size: 2.5em;
+  margin-bottom: 10px;
+}
+
+main {
+  width: 100%;
+  max-width: 600px;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  margin-bottom: 20px;
+}
+
+h2 {
+  font-size: 1.8em;
+  margin-top: 30px;
+  margin-bottom: 15px;
+  text-align: center;
+  color: white;
+}
+
+table {
+  width: 100%;
+  margin-top: 10px;
+}
+
+th,
+td {
+  padding: 12px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+th {
+  font-weight: bold;
+  width: 35%;
+}
+
+td {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+#icon img {
+  width: 60px;
+  height: 60px;
+  display: block; /* imgをブロック要素にして中央寄せ可能に */
+  margin: 0 auto; /* 中央寄せ */
+}
+
+    /* 5日間予報のスタイル */
+#forecast-section {
+  width: 100%;
+  max-width: 600px;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  margin-bottom: 20px;
+}
+
+.daily-forecast-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+.daily-forecast-item:last-child {
+  border-bottom: none;
+}
+
+.daily-forecast-date {
+  font-weight: bold;
+  flex: 1;
+  text-align: left;
+}
+.daily-forecast-icon {
+  flex: 0 0 70px;
+  text-align: center;
+}
+.daily-forecast-icon img {
+  width: 50px;
+  height: 50px;
+}
+.daily-forecast-description {
+  flex: 1.5;
+  text-align: left;
+  margin-left: 10px;
+}
+.daily-forecast-temp {
+  flex: 1;
+  text-align: right;
+  font-size: 1.1em;
+}
