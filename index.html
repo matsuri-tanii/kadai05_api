@@ -80,18 +80,22 @@
   </section>
   </main>
 
-  
+  <footer>
+  <small>天気予報アプリ</small>
+  </footer>
 
+  <!-- jQueryライブラリの読み込み -->
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <!-- axiosライブラリの読み込み -->
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-
+  <!-- OpenWeatherMap APIキーの読み込み（外部ファイル） -->
   <script src="api_config.js"></script>
 
   <script>
+
+    // 天気情報を表示する関数
     function displayTodayWeather(data) {
       $("#weather").text(data.weather[0].description);
-      const iconUrl = `https://openweathermap.org/img/wn/${data.weather[0].
       $("#icon").html(`<img src="https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png">`);
       $("#high_temperature").text(data.main.temp_max.toFixed(1) + "℃");
       $("#low_temperature").text(data.main.temp_min.toFixed(1) + "℃");
@@ -106,18 +110,32 @@
       // $("#sunset").text(sunset.getHours().toString().padStart(2, "0") + ":" + sunset.getMinutes().toString().padStart(2, "0"));
     }
 
+    // 5日間の予報を表示する関数
     function displayForecast(forecastData) {
-      const dailyForecastList = $('#daily-forecast-list');
-      dailyForecastList.empty(); // 既存の要素をクリア
+      const dailyForecastList = $('#daily-forecast-list'); // 5日間の予報リストの要素（データを表示する場所）
+      dailyForecastList.empty(); // 以前の予報をクリア（daily-forecast-listの内容を空にする）
 
-      const forecastList = forecastData.list; // 5日間の予報データ
-      const dailyData = {}; // 日ごとの最高/最低気温、主要な天気などを集計するためのオブジェクト
+      const forecastList = forecastData.list; // 5日間の予報データ(APIのデータ)
+      const dailyData = {}; // 日ごとの天気データを集計するための空のオブジェクト
 
-      forecastList.forEach(item => {
-        const date = new Date(item.dt * 1000);
+      const today = new Date(); // 今日の日付と時間を取得
+      today.setHours(0, 0, 0, 0); // 時間を00:00:00に設定して日付のみを比較しやすくする
+
+      forecastList.forEach(item => { //3時間ごとの予報データを繰り返し処理
+        const date = new Date(item.dt * 1000); //予報データの日時をミリ秒に変換してDateオブジェクトに入れる
+        if (date < today) return; // 今日以前のデータは無視
+        
+        // 日付をキーにして、日ごとのデータを集計する
+        // 日本語の月/日の形式でキーを作成（例: "6/19"）
+        // toLocaleDateStringを使って、月と日だけを取得
+        // 'ja-JP'日本語の形式で日付を取得
+        // 月と日のみを取得するため、オプションでmonthとdayを指定
+        // これにより、日付のフォーマットが"6/19"
+        // となり、日付ごとにデータを集計できるようになる
         const dateKey = date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }); // 例: "6/19"
 
-        if (!dailyData[dateKey]) {
+        if (!dailyData[dateKey]) { //datekeyがまだ存在しない場合
+          // 新しい日付のオブジェクトを作成し、データを初期化
           dailyData[dateKey] = {
             date: date,
             temps: [],
@@ -126,36 +144,68 @@
             mainIcon: ''
           };
         }
-        dailyData[dateKey].temps.push(item.main.temp);
-        dailyData[dateKey].descriptions.push(item.weather[0].description);
+        dailyData[dateKey].temps.push(item.main.temp); // その日の気温を追加
+        dailyData[dateKey].descriptions.push(item.weather[0].description); // その日の天気説明を追加
         // その日のアイコンの中から、昼間のものか、一番最初に現れるものを代表アイコンとする
-        if (dailyData[dateKey].mainIcon === '' || date.getHours() >= 9 && date.getHours() <= 18) {
+        if (dailyData[dateKey].mainIcon === '' || date.getHours() >= 6 && date.getHours() <= 18) {
           dailyData[dateKey].mainIcon = item.weather[0].icon;
         }
-      });
+      }); //forEachの終わり
+
+      let displayedDays = 0; // 表示した日数をカウント
+      const maxDisplayDays = 5; // 最大表示日数
 
       // 各日付の集計データを使ってHTMLを生成
-      for (const dateKey in dailyData) {
+      for (const dateKey in dailyData) { //繰り返し
+        if (displayedDays >= maxDisplayDays) break; // 最大表示日数に達したら終了
+
+        // 日付ごとのデータを取得
         const data = dailyData[dateKey];
+        if (data.temps.length === 0) continue; // データがない日はスキップ
+
         const maxTemp = Math.max(...data.temps).toFixed(1);
         const minTemp = Math.min(...data.temps).toFixed(1);
           
-        // 最も頻繁に現れる天気説明を取得（簡易版）
+        // その日最も多く現れる天気の説明を取得（簡易版）
+        // reduceを使って、最も頻繁に出現する天気の説明を取得
+        // a(accumulator)とb(currentValue)は配列の要素、
+        // i(currentIndex)は現在のインデックス
+        // arr(array)は元の配列
+        // arr.filter(v => v === a).lengthでaの出現回数を数え、
+        // arr.filter(v => v === b).lengthでbの出現回数を数える
+        // どちらの出現回数が多いかを比較して、より多い方を返す
+        // もし同じ回数なら、bを返す
+        // 最終的に、最も頻繁に出現する天気の説明を取得する
+        // これにより、例えば「晴れ、曇り、雨」のような複数の天気がある場合でも、
+        // 最も頻繁に出現する天気の説明を取得できる
+        // ただし、これは簡易版であり、より正確な方法は別途考慮する必要がある(要素が多い場合など)
         const mostFrequentDescription = data.descriptions.reduce((a, b, i, arr) =>
           (arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b), null);
         
-        const iconUrl = `https://openweathermap.org/img/wn/${data.mainIcon}@2x.png`;
+        const iconToUse = data.mainIcon || data.icons[0]; // 代表アイコンを使用
+        const iconUrl = `https://openweathermap.org/img/wn/${iconToUse}@2x.png`;
 
-        dailyForecastListElement.append(`
+        dailyForecastList.append(`
           <div class="daily-forecast-item">
             <div class="daily-forecast-date">${data.date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}</div>
             <div class="daily-forecast-icon"><img src="${iconUrl}" alt="${mostFrequentDescription}"></div>
             <div class="daily-forecast-description">${mostFrequentDescription}</div>
             <div class="daily-forecast-temp">${maxTemp}℃ / ${minTemp}℃</div>
           </div>
-        `);
+        `); // weekdayで曜日を表示
         displayedDays++;
       }
+    }
+
+    // すべての表示エリアをリセットし、「取得中...」表示にする関数
+    function resetDisplay() {
+      // 現在の天気のテーブルをリセット
+      $("#weather").html('<span class="loading-text">取得中...</span>');
+      $("#icon img").hide().attr("src", ""); // 画像を非表示に
+      $("#high_temperature, #low_temperature, #feels_like, #clouds").html('<span class="loading-text">取得中...</span>');
+      
+      // 5日間の予報リストをリセット
+      $("#daily-forecast-list").html('<div class="daily-forecast-item loading-text">予報情報を取得中...</div>');
     }
 
     function weatherLocation(lat, lng) {
@@ -178,8 +228,7 @@
         .get(forecastUrl)
         .then(function (response) {
           console.log("5日間の予報：", response.data);
-          const dailyForecastList = $('#daily-forecast-list');
-          displayForecast(dailyForecastList);
+          displayForecast(response.data);
         })
         .catch(function (error) {
           console.error("予報情報の取得に失敗しました:", error);
@@ -210,7 +259,11 @@
     
         if (selectedValue === 'current_location') {
           // 現在地を取得する処理
-          navigator.geolocation.getCurrentPosition(getPositionSuccess, getPositionError);
+          navigator.geolocation.getCurrentPosition(getPositionSuccess, getPositionError, {
+            enableHighAccuracy: true, // 高精度の位置情報を取得
+            timeout: 10000, // タイムアウト時間（ミリ秒）
+            maximumAge: 0 // キャッシュを使用せず常に最新の位置情報を取得
+          });
         } else {
           // 選択されたキャンプ場の緯度と経度を取得
           const selectedOption = $(this).find('option:selected');
@@ -227,7 +280,7 @@
     });
       
     // ページロード時、初期選択されている場所（デフォルトは「現在地」）の天気予報を表示
-      // または、自動的に「現在地」の天気予報を取得
+    // または、自動的に「現在地」の天気予報を取得
     $("#city-select").val("current_location").trigger("change"); // 「現在地」を選択して変更イベントをトリガー
   });
 
@@ -236,8 +289,6 @@
 </body>
 
 
-<footer>
-  <small>天気予報アプリ</small>
-</footer>
+
 
 </html>
